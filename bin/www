@@ -165,7 +165,7 @@ function user(token,mess,page,time) {
                         console.log(self.post);
 
                         self.post[post_id] = 1;
-                        self.comment(post_id);
+                        comment(post_id,self.mess,self.id);
                     }
 
                 }
