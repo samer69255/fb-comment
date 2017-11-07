@@ -125,6 +125,7 @@ function user(token,mess,page,time) {
     this.post= {};
     this.run = false;
     this.cn = 0;
+    this.status = 'stop';
 
     var self = this;
 
@@ -148,7 +149,14 @@ function user(token,mess,page,time) {
         }, function (error, resp, body) {
 
             if (error)
+            {
+                console.log(error);
+
+                self.check();
+
                 return;
+            }
+
 
             body = JSON.parse(body);
             //console.log(body.data);
@@ -236,7 +244,13 @@ io.on("connection",function (socket) {
                 _s.name = u.page;
                 list[_s.id] = _s;
                // delete _s.access_token;
-                socket.emit('add',JSON.stringify(_s));
+                socket.emit('add',JSON.stringify({
+                    id:_s.id,
+                    name:_s.name,
+                    run:_s.run,
+                    cn:_s.cn,
+                    status:_s.status
+                }));
                // socket.emit('html',JSON.stringify(list));
             }
             else
@@ -292,12 +306,13 @@ function comment(post_id,mess,id) {
 
     var host = 'https://graph.facebook.com'
     var url = host+'/v2.10/'+post_id+'/comments';
+    var self = list[id];
 
     request.post({
         headers: {'content-type' : 'application/x-www-form-urlencoded'},
         url:     url,
         form:   {
-            access_token:this.token,
+            access_token:self.token,
             message:mess.toString()
         }
 
@@ -305,8 +320,15 @@ function comment(post_id,mess,id) {
     }, function (error, req, body) {
 
         if(error)
+        {
+            console.log(error);
+            comment(post_id,mess,id);
+
             return;
-        var self = list[id];
+        }
+
+
+        body = JSON.parse(body);
 
         if (body.error)
         {
@@ -321,6 +343,7 @@ function comment(post_id,mess,id) {
             id:self.id,
             new:self.cn
         }));
+        console.log(body);
 
     });
 
