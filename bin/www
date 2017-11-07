@@ -163,7 +163,7 @@ function user(token,mess,page,time) {
             data = body.data;
             for (var i in data) {
                 var d = data[i].created_time;
-                time = new Date().getTime() - Date.parse(d);
+             var   time = new Date().getTime() - Date.parse(d);
                 var min= getMin(time);
                 if (min <= self.t) {
 
