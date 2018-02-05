@@ -7,12 +7,14 @@
 var app = require('../app');
 var debug = require('debug')('fb-comment-bot:server');
 var http = require('http');
+var user = require('../class.js');
+var fs = require('fs');
 
 /**
  * Get port from environment and store in Express.
  */
 
-var port = normalizePort(process.env.PORT || '5000');
+var port = normalizePort(process.env.PORT || '8000');
 app.set('port', port);
 
 /**
@@ -89,7 +91,7 @@ function onListening() {
   debug('Listening on ' + bind);
 }
 var io = require('socket.io')(server);
-var list = [];
+var list = {};
 
 
 
@@ -116,93 +118,7 @@ function check(token,fn) {
 }
 
 
-function user(token,mess,page,time) {
-    this.token = token;
-    this.mess = mess;
-    this.page = page;
-    this.t = time || 5;
-    this.times = 1;
-    this.post= {};
-    this.run = false;
-    this.cn = 0;
-    this.status = 'stop';
 
-    var self = this;
-
-    delete token,mess,page,time;
-
-
-
-
-
-    this.check = function () {
-        var
-            host = 'https://graph.facebook.com',
-            url = host + '/v2.10/'+ this.page +'/feed';
-        url += '?access_token=' + this.token;
-        request.get({
-            headers: {'content-type' : 'application/x-www-form-urlencoded'},
-            url:     url,
-
-
-            // on comple comment
-        }, function (error, resp, body) {
-
-            if (error)
-            {
-                console.log(error);
-
-                self.check();
-
-                return;
-            }
-
-
-            body = JSON.parse(body);
-            //console.log(body.data);
-            data = body.data;
-            for (var i in data) {
-                var d = data[i].created_time;
-             var   time = new Date().getTime() - Date.parse(d);
-                var min= getMin(time);
-                if (min <= self.t) {
-
-                    var post_id = data[i].id;
-                    if (! (post_id in self.post))
-                    {
-                        console.log(self.post);
-
-                        self.post[post_id] = 1;
-                        comment(post_id,self.mess,self.id);
-                    }
-
-                }
-                if (self.run) self.check();
-            }
-
-        });
-    }
-
-    this.start = function () {
-        this.run = true;
-        this.check();
-        this.status = "running";
-    }
-
-    this.stop = function () {
-        this.run = false;
-        this.status = 'stop';
-    }
-
-
-}
-
-
-
-function getMin(millis) {
-    var minutes = Math.floor(millis / 60000);
-    return minutes;
-}
 
 
 
@@ -239,17 +155,21 @@ io.on("connection",function (socket) {
                 }));
 
 
-                var _s = new user(u.access_token,u.mess,u.page,5);
-                _s.id = u.page + '_' + getRandom();
-                _s.name = u.page;
-                list[_s.id] = _s;
+                var usr = new user(u.access_token,u.mess,u.page,5);
+                usr.id = u.page + '_' + getRandom();
+                usr.name = u.page;
+                usr.comment = function (post,mess,id) {
+                    comment(post,mess,id);
+                };
+                usr.cm = 200*200;
+                list[usr.id] = usr;
                // delete _s.access_token;
                 socket.emit('add',JSON.stringify({
-                    id:_s.id,
-                    name:_s.name,
-                    run:_s.run,
-                    cn:_s.cn,
-                    status:_s.status
+                    id:usr.id,
+                    name:usr.name,
+                    run:usr.run,
+                    cn:usr.cn,
+                    status:usr.status
                 }));
                // socket.emit('html',JSON.stringify(list));
             }
@@ -262,7 +182,11 @@ io.on("connection",function (socket) {
                     error:true
                 }));
             }
+
+            save();
         });
+
+
 
     });
 
@@ -270,6 +194,7 @@ io.on("connection",function (socket) {
             console.log('stopped');
             list[id].stop();
             io.sockets.emit('stop',id);
+            save();
     });
 
     socket.on("start",function (id) {
@@ -279,6 +204,8 @@ io.on("connection",function (socket) {
 
             var ob =  list[id];
             ob.start();
+            save();
+
 
     });
 
@@ -290,6 +217,7 @@ io.on("connection",function (socket) {
             list[id].stop();
 
             delete list[id];
+            save();
     });
 
 
@@ -343,10 +271,25 @@ function comment(post_id,mess,id) {
             id:self.id,
             new:self.cn
         }));
-        console.log(body);
+        //console.log(body);
+        console.log('commit success');
+        if (self.cn < self.cm) self.check();
+        else {
+            self.stop();
+            io.sockets.emit('stop', id);
+        }
+        save();
 
     });
 
 
 
+}
+
+function save() {
+    var file =  '../User.json';
+    console.log(list);
+    fs.writeFile(file,JSON.stringify(list),function (err,data) {
+        if (err) console.log(err);
+    });
 }
